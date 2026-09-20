@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>VAN 환불 관리</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#111827;--muted:#6b7280;--line:#e5e7eb;--accent:#111827;--done:#ecfdf5;--doneLine:#a7f3d0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:25px;margin:0 0 6px}.sub{color:var(--muted);font-size:14px;line-height:1.5;margin-bottom:16px}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:14px}
+.stat b{display:block;font-size:20px;margin-top:3px}.stat span{font-size:12px;color:var(--muted)}
+.controls{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:16px}
+.search{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 13px;font:inherit;background:#fff}
+.filters{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.filter{border:1px solid var(--line);background:#fff;color:var(--text);padding:9px 12px;border-radius:999px;font-weight:700}
+.filter.active{background:var(--accent);color:white;border-color:var(--accent)}
+.list{display:grid;gap:14px}
+.person{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px}
+.person.done{background:var(--done);border-color:var(--doneLine)}
+.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.name{font-size:18px;font-weight:800}.meta{font-size:14px;color:var(--muted);margin-top:5px;line-height:1.45}
+.badge{font-size:12px;font-weight:800;padding:6px 9px;border-radius:999px;background:#f3f4f6;white-space:nowrap}
+.person.done .badge{background:#d1fae5}
+.actions{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:14px}
+button{font:inherit;border:0;border-radius:12px;padding:11px 12px;font-weight:800;cursor:pointer}
+.sms{background:#111827;color:#fff}.copy{background:#f3f4f6;color:#111827}.check{background:#fff;border:1px solid var(--line);min-width:82px}
+.person.done .check{background:#059669;color:#fff;border-color:#059669}
+.note{font-size:12px;color:var(--muted);line-height:1.55;margin-top:18px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111827;color:white;padding:10px 14px;border-radius:10px;font-size:14px;opacity:0;pointer-events:none;transition:.2s}
+.toast.show{opacity:1}
+@media(max-width:540px){.summary{grid-template-columns:1fr 1fr}.summary .stat:last-child{grid-column:1/-1}.actions{grid-template-columns:1fr 1fr}.check{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>VAN 환불 관리</h1>
+  <div class="sub">환불 관련 유료 좌석 전체 44명 · 네트워킹 비용 제외 · 완료 여부는 이 기기 브라우저에 저장됩니다.</div>
+  <div class="summary">
+    <div class="stat"><span>미완료</span><b id="pendingCount">-</b></div>
+    <div class="stat"><span>완료</span><b id="doneCount">-</b></div>
+    <div class="stat"><span>남은 환불액</span><b id="pendingAmount">-</b></div>
+  </div>
+  <div class="controls">
+    <input id="search" class="search" placeholder="이름 또는 번호 검색" oninput="render()">
+    <div class="filters">
+      <button class="filter active" onclick="setFilter('pending',this)">미완료</button>
+      <button class="filter" onclick="setFilter('done',this)">완료</button>
+      <button class="filter" onclick="setFilter('all',this)">전체</button>
+    </div>
+  </div>
+  <div class="list" id="list"></div>
+  <div class="note">SMS 버튼은 각 사람에게 1:1 문자 작성 화면을 엽니다. 체크 상태는 현재 Safari에 저장됩니다.</div>
+</div>
+<div class="toast" id="toast">복사했습니다.</div>
+<script>
+const people = [{"name":"한연화","phone":"010-4693-6584","seat":"S석","amount":5000,"initialDone":false},{"name":"김재석","phone":"010-8697-1128","seat":"VIP석","amount":30000,"initialDone":true},{"name":"김승주","phone":"010-4099-1124","seat":"S석","amount":5000,"initialDone":false},{"name":"배지민","phone":"010-6255-1392","seat":"S석","amount":5000,"initialDone":false},{"name":"이성은","phone":"010-3830-5042","seat":"S석","amount":5000,"initialDone":false},{"name":"류용현","phone":"010-8507-7075","seat":"R석","amount":15000,"initialDone":false},{"name":"신철원","phone":"010-6888-7304","seat":"R석","amount":15000,"initialDone":false},{"name":"강신혜","phone":"010-5270-1626","seat":"S석","amount":5000,"initialDone":false},{"name":"이규현","phone":"010-2170-8730","seat":"R석","amount":15000,"initialDone":false},{"name":"박민석","phone":"010-8912-1282","seat":"R석","amount":15000,"initialDone":false},{"name":"박진우","phone":"+81 70-8969-7264","seat":"R석","amount":15000,"initialDone":false},{"name":"김민혁","phone":"010-4781-9502","seat":"VIP석","amount":30000,"initialDone":true},{"name":"서주현","phone":"010-5056-8542","seat":"S석","amount":5000,"initialDone":false},{"name":"신우진","phone":"010-2732-4074","seat":"S석","amount":5000,"initialDone":false},{"name":"김동인","phone":"010-6353-8527","seat":"S석","amount":5000,"initialDone":false},{"name":"조호현","phone":"010-2617-4049","seat":"S석","amount":5000,"initialDone":false},{"name":"손준혁","phone":"010-9399-5986","seat":"S석","amount":5000,"initialDone":false},{"name":"김태린","phone":"010-3052-7748","seat":"S석","amount":5000,"initialDone":false},{"name":"박시은","phone":"010-4779-8337","seat":"S석","amount":5000,"initialDone":false},{"name":"박근우","phone":"010-4680-1868","seat":"S석","amount":5000,"initialDone":false},{"name":"이수환","phone":"010-2809-0627","seat":"VIP석","amount":30000,"initialDone":false},{"name":"박채원","phone":"010-2425-6733","seat":"R석","amount":15000,"initialDone":false},{"name":"송하현","phone":"010-7432-4543","seat":"S석","amount":5000,"initialDone":false},{"name":"권다온","phone":"010-9237-6957","seat":"S석","amount":5000,"initialDone":false},{"name":"전시완","phone":"010-4639-9710","seat":"R석","amount":15000,"initialDone":false},{"name":"김동현","phone":"010-3110-4204","seat":"R석","amount":15000,"initialDone":false},{"name":"이민경","phone":"010-2980-7376","seat":"S석","amount":5000,"initialDone":false},{"name":"박서린","phone":"010-8684-5775","seat":"S석","amount":5000,"initialDone":false},{"name":"이태리","phone":"010-7273-6359","seat":"S석","amount":5000,"initialDone":false},{"name":"엄태준","phone":"010-7592-5175","seat":"S석","amount":5000,"initialDone":true},{"name":"이현지","phone":"010-5822-9647","seat":"S석","amount":5000,"initialDone":true},{"name":"엄현아","phone":"010-4736-9766","seat":"VIP석","amount":30000,"initialDone":false},{"name":"양지원","phone":"010-2328-6724","seat":"S석","amount":5000,"initialDone":false},{"name":"권시후","phone":"010-5810-6058","seat":"S석","amount":5000,"initialDone":true},{"name":"서하은","phone":"010-7598-9633","seat":"VIP석","amount":30000,"initialDone":false},{"name":"유지민","phone":"010-5701-7323","seat":"S석","amount":5000,"initialDone":false},{"name":"이연우","phone":"010-2621-0443","seat":"S석","amount":5000,"initialDone":false},{"name":"이민주","phone":"010-4386-0666","seat":"S석","amount":5000,"initialDone":false},{"name":"김시우","phone":"010-8739-8503","seat":"S석","amount":5000,"initialDone":false},{"name":"맹가은","phone":"010-8718-1242","seat":"S석","amount":5000,"initialDone":false},{"name":"이수빈","phone":"010-7646-6675","seat":"S석","amount":5000,"initialDone":false},{"name":"변정우","phone":"010-2675-7922","seat":"S석","amount":5000,"initialDone":false},{"name":"임재령","phone":"010-5819-9915","seat":"S석","amount":5000,"initialDone":false},{"name":"이영진","phone":"010-8473-1744","seat":"R석","amount":15000,"initialDone":true}];
+const KEY="van-refund-completion-v3";
+const saved=JSON.parse(localStorage.getItem(KEY)||"{}");
+let state={}; people.forEach(p=>{const id=p.name+"|"+p.phone;state[id]=saved[id] ?? p.initialDone;});
+let currentFilter="pending";
+function idOf(p){return p.name+"|"+p.phone}
+function save(){localStorage.setItem(KEY,JSON.stringify(state))}
+function phone(p){return p.startsWith("+")?"+"+p.slice(1).replace(/\D/g,""):p.replace(/\D/g,"")}
+function message(p){return `안녕하세요, ${p.name}님. VAN 컨퍼런스 운영 과정에서 불편을 드린 점과 환불 안내가 늦어진 점 진심으로 사과드립니다. 좌석비 ${p.amount.toLocaleString("ko-KR")}원 환불을 위해 은행명/계좌번호/예금주를 회신 부탁드립니다. 확인 후 신속히 환불드리겠습니다. 감사합니다.`}
+function openSms(p){location.href=`sms:${phone(p.phone)}&body=${encodeURIComponent(message(p))}`}
+async function copyMsg(p){try{await navigator.clipboard.writeText(message(p));toast("문구 복사 완료")}catch(e){}}
+function toggle(p){state[idOf(p)]=!state[idOf(p)];save();render()}
+function setFilter(f,el){currentFilter=f;document.querySelectorAll(".filter").forEach(x=>x.classList.remove("active"));el.classList.add("active");render()}
+function toast(t){const x=document.getElementById("toast");x.textContent=t;x.classList.add("show");setTimeout(()=>x.classList.remove("show"),1200)}
+function render(){
+ const q=document.getElementById("search").value.trim().toLowerCase();
+ const pending=people.filter(p=>!state[idOf(p)]), doneN=people.length-pending.length;
+ document.getElementById("pendingCount").textContent=pending.length+"명";
+ document.getElementById("doneCount").textContent=doneN+"명";
+ document.getElementById("pendingAmount").textContent=pending.reduce((s,p)=>s+p.amount,0).toLocaleString("ko-KR")+"원";
+ const filtered=people.filter(p=>{const d=state[idOf(p)];if(currentFilter==="pending"&&d)return false;if(currentFilter==="done"&&!d)return false;return !q||(p.name+" "+p.phone+" "+p.seat).toLowerCase().includes(q)});
+ const list=document.getElementById("list");list.innerHTML="";
+ filtered.forEach(p=>{const d=state[idOf(p)],card=document.createElement("div");card.className="person"+(d?" done":"");card.innerHTML=`<div class="top"><div><div class="name">${p.name}</div><div class="meta">${p.phone}<br>${p.seat} · ${p.amount.toLocaleString("ko-KR")}원</div></div><div class="badge">${d?"완료":"미완료"}</div></div><div class="actions"><button class="sms">SMS 열기</button><button class="copy">문구 복사</button><button class="check">${d?"완료 취소":"완료 체크"}</button></div>`;const [a,b,c]=card.querySelectorAll("button");a.onclick=()=>openSms(p);b.onclick=()=>copyMsg(p);c.onclick=()=>toggle(p);list.appendChild(card)});
+}
+render();
+</script>
+</body>
+</html>
